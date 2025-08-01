@@ -6,7 +6,7 @@ from rich.prompt import Confirm
 from mcpm.profile.profile_config import ProfileConfigManager
 from mcpm.utils.rich_click_config import click
 
-console = Console()
+console = Console(stderr=True)
 profile_config_manager = ProfileConfigManager()
 
 

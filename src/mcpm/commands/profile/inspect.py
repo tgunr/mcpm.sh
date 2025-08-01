@@ -11,7 +11,7 @@ from mcpm.profile.profile_config import ProfileConfigManager
 from mcpm.utils.platform import NPX_CMD
 from mcpm.utils.rich_click_config import click
 
-console = Console()
+console = Console(stderr=True)
 profile_config_manager = ProfileConfigManager()
 
 

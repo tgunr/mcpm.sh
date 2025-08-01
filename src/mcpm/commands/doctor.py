@@ -13,7 +13,7 @@ from mcpm.utils.config import ConfigManager
 from mcpm.utils.repository import RepositoryManager
 from mcpm.utils.rich_click_config import click
 
-console = Console()
+console = Console(stderr=True)
 
 
 @click.command()

@@ -19,7 +19,7 @@ from mcpm.profile.profile_config import ProfileConfigManager
 from mcpm.utils.config import DEFAULT_CONFIG_DIR, ConfigManager
 
 logger = logging.getLogger(__name__)
-console = Console()
+console = Console(stderr=True)
 
 
 class V1ToV2Migrator:

@@ -11,7 +11,7 @@ from rich.table import Table
 from mcpm.core.schema import CustomServerConfig, RemoteServerConfig, ServerConfig, STDIOServerConfig
 from mcpm.utils.scope import CLIENT_PREFIX, PROFILE_PREFIX
 
-console = Console()
+console = Console(stderr=True)
 
 
 def print_server_config(server_config: ServerConfig, is_stashed=False, show_name=True):

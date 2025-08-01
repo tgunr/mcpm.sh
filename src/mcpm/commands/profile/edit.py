@@ -8,7 +8,7 @@ from mcpm.utils.rich_click_config import click
 
 from .interactive import interactive_profile_edit
 
-console = Console()
+console = Console(stderr=True)
 profile_config_manager = ProfileConfigManager()
 global_config_manager = GlobalConfigManager()
 

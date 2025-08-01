@@ -11,7 +11,7 @@ from mcpm.global_config import GlobalConfigManager
 from mcpm.utils.platform import NPX_CMD
 from mcpm.utils.rich_click_config import click
 
-console = Console()
+console = Console(stderr=True)
 global_config_manager = GlobalConfigManager()
 
 

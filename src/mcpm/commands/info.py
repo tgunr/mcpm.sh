@@ -8,7 +8,7 @@ from mcpm.utils.display import print_error
 from mcpm.utils.repository import RepositoryManager
 from mcpm.utils.rich_click_config import click
 
-console = Console()
+console = Console(stderr=True)
 repo_manager = RepositoryManager()
 
 

@@ -21,7 +21,7 @@ from mcpm.utils.rich_click_config import click
 
 global_config_manager = GlobalConfigManager()
 logger = logging.getLogger(__name__)
-console = Console()
+console = Console(stderr=True)
 
 
 def find_installed_server(server_name):

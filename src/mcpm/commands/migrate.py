@@ -5,7 +5,7 @@ from rich.console import Console
 from mcpm.migration import V1ConfigDetector, V1ToV2Migrator
 from mcpm.utils.rich_click_config import click
 
-console = Console()
+console = Console(stderr=True)
 
 
 @click.command()

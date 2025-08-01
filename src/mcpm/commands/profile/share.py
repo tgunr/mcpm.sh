@@ -18,7 +18,7 @@ from mcpm.utils.logging_config import (
 )
 from mcpm.utils.rich_click_config import click
 
-console = Console()
+console = Console(stderr=True)
 profile_config_manager = ProfileConfigManager()
 logger = logging.getLogger(__name__)
 

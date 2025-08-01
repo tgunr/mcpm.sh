@@ -10,7 +10,7 @@ from rich.table import Table
 from mcpm.monitor import get_monitor
 from mcpm.utils.rich_click_config import click
 
-console = Console()
+console = Console(stderr=True)
 
 
 async def get_usage_stats_async(days: int, server_name: str = None, profile_name: str = None):

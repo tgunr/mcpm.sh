@@ -9,7 +9,7 @@ from mcpm.profile.profile_config import ProfileConfigManager
 from mcpm.utils.display import print_server_config
 from mcpm.utils.rich_click_config import click
 
-console = Console()
+console = Console(stderr=True)
 profile_manager = ProfileConfigManager()
 global_config_manager = GlobalConfigManager()
 

@@ -24,7 +24,7 @@ from mcpm.utils.rich_click_config import click
 
 profile_config_manager = ProfileConfigManager()
 logger = logging.getLogger(__name__)
-console = Console()
+console = Console(stderr=True)
 
 
 @contextlib.contextmanager

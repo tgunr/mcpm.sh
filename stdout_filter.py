@@ -92,19 +92,23 @@ def main():
     # Forward stdin to process
     def forward_stdin():
         try:
-            for line in sys.stdin:
-                if process.poll() is None:  # Process still running
-                    process.stdin.write(line)
-                    process.stdin.flush()
-                else:
+            while process.poll() is None:
+                try:
+                    # Use select to check if stdin has data available
+                    ready, _, _ = select.select([sys.stdin], [], [], 0.1)
+                    if ready:
+                        line = sys.stdin.readline()
+                        if line:
+                            process.stdin.write(line)
+                            process.stdin.flush()
+                        else:
+                            # EOF on stdin, but don't close process stdin yet
+                            break
+                except:
                     break
         except:
             pass
-        finally:
-            try:
-                process.stdin.close()
-            except:
-                pass
+        # Don't close stdin immediately - let the process decide when to exit
 
     # Start stdin forwarding in background
     import threading
@@ -113,10 +117,7 @@ def main():
 
     # Filter stdout
     try:
-        while True:
-            if process.poll() is not None:
-                break
-
+        while process.poll() is None:
             # Read available output
             ready, _, _ = select.select([process.stdout], [], [], 0.1)
             if ready:
@@ -129,6 +130,16 @@ def main():
                 if filtered:
                     sys.stdout.write(filtered)
                     sys.stdout.flush()
+
+        # Process any remaining output after process exits
+        while True:
+            line = process.stdout.readline()
+            if not line:
+                break
+            filtered = filter_stdout_line(line)
+            if filtered:
+                sys.stdout.write(filtered)
+                sys.stdout.flush()
 
     except (KeyboardInterrupt, BrokenPipeError):
         pass

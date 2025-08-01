@@ -23,7 +23,7 @@ from mcpm.utils.config import NODE_EXECUTABLES, ConfigManager
 from mcpm.utils.repository import RepositoryManager
 from mcpm.utils.rich_click_config import click
 
-console = Console()
+console = Console(stderr=True)
 repo_manager = RepositoryManager()
 profile_config_manager = ProfileConfigManager()
 global_config_manager = GlobalConfigManager()

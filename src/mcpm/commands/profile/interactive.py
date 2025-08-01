@@ -6,7 +6,7 @@ from InquirerPy import inquirer
 from InquirerPy.base.control import Choice
 from rich.console import Console
 
-console = Console()
+console = Console(stderr=True)
 
 
 def interactive_profile_edit(profile_name: str, all_servers: dict, current_servers: set):

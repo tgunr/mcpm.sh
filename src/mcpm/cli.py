@@ -55,7 +55,7 @@ from mcpm.migration import V1ConfigDetector, V1ToV2Migrator
 from mcpm.utils.logging_config import setup_logging
 from mcpm.utils.rich_click_config import click, get_header_text
 
-console = Console()
+console = Console(stderr=True)
 client_config_manager = ClientConfigManager()
 
 # Setup Rich logging early - this runs when the module is imported
