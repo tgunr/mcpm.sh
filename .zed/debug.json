@@ -1,0 +1,84 @@
+// Project-local debug tasks for MCPM
+//
+// For more documentation on how to configure debug tasks,
+// see: https://zed.dev/docs/debugger
+[
+  {
+    "name": "Python: Current File",
+    "type": "node",
+    "request": "launch",
+    "program": "${file}",
+    "console": "integratedTerminal",
+    "cwd": "${workspaceFolder}"
+  },
+  {
+    "name": "Python: Main Module",
+    "type": "node",
+    "request": "launch",
+    "program": "${workspaceFolder}/main.py",
+    "console": "integratedTerminal",
+    "cwd": "${workspaceFolder}"
+  },
+  {
+    "name": "Python: Test Module",
+    "type": "node",
+    "request": "launch",
+    "program": "${workspaceFolder}/test_cli.py",
+    "console": "integratedTerminal",
+    "cwd": "${workspaceFolder}"
+  },
+  {
+    "label": "Debug MCPM CLI Test Interactive",
+    "adapter": "Debugpy",
+    "program": "uv",
+    "request": "launch",
+    "cwd": "${workspaceFolder}",
+    "args": ["run", "python", "test_cli.py"],
+    "console": "integratedTerminal"
+  },
+  {
+    "label": "Debug MCPM CLI Direct",
+    "adapter": "Debugpy",
+    "program": "uv",
+    "request": "launch",
+    "cwd": "${workspaceFolder}",
+    "args": ["run", "python", "-m", "mcpm.cli", "--help"],
+    "console": "integratedTerminal"
+  },
+  {
+    "label": "Debug MCPM with Custom Args",
+    "adapter": "Debugpy",
+    "program": "uv",
+    "request": "launch",
+    "cwd": "${workspaceFolder}",
+    "args": ["run", "python", "test_cli.py", "search", "filesystem"],
+    "console": "integratedTerminal"
+  },
+  {
+    "label": "Debug Launcher (Recommended)",
+    "adapter": "Debugpy",
+    "program": "uv",
+    "request": "launch",
+    "cwd": "${workspaceFolder}",
+    "args": ["run", "python", "debug_launch.py"],
+    "console": "integratedTerminal"
+  },
+  {
+    "label": "Debug Launcher with Args",
+    "adapter": "Debugpy",
+    "program": "uv",
+    "request": "launch",
+    "cwd": "${workspaceFolder}",
+    "args": ["run", "python", "debug_launch.py", "search", "filesystem"],
+    "console": "integratedTerminal"
+  },
+  {
+    "label": "Python Active File (with uv)",
+    "adapter": "Debugpy",
+    "program": "uv",
+    "request": "launch",
+    "cwd": "${workspaceFolder}",
+    "args": ["run", "python", "$ZED_FILE"],
+    "console": "integratedTerminal"
+  }
+]
