@@ -41,6 +41,9 @@ def client():
         mcpm client edit claude-desktop   # Interactive server selection for Claude Desktop
         mcpm client edit cursor -e        # Open Cursor config in external editor
         mcpm client import cursor         # Import server configurations from Cursor
+        mcpm client fix-profiles          # Fix existing profile configurations for better compatibility
+
+    For Claude Desktop integration issues, see: CLAUDE_DESKTOP_INTEGRATION.md
     """
     pass
 
@@ -582,7 +585,7 @@ def _save_config_with_profiles_and_servers(
         # Add new MCPM profile entries
         for profile_name in selected_profiles:
             prefixed_name = f"mcpm_profile_{profile_name}"
-            server_config = STDIOServerConfig(name=prefixed_name, command="mcpm", args=["profile", "run", profile_name])
+            server_config = STDIOServerConfig(name=prefixed_name, command="mcpm", args=["profile", "run", "--stdio-clean", profile_name])
             client_manager.add_server(server_config)
 
         # Add new MCPM server entries
@@ -1077,7 +1080,7 @@ def _replace_client_config_with_profile(client_manager, profile_name, client_nam
         # Add single profile command
         profile_server_name = f"mcpm_profile_{profile_name}"
         server_config = STDIOServerConfig(
-            name=profile_server_name, command="mcpm", args=["profile", "run", profile_name]
+            name=profile_server_name, command="mcpm", args=["profile", "run", "--stdio-clean", profile_name]
         )
         client_manager.add_server(server_config)
 
@@ -1114,3 +1117,124 @@ def _replace_client_config_with_mcpm(client_manager, selected_servers, client_na
 
     except Exception as e:
         print_error("Error replacing client config", str(e))
+
+
+@client.command(name="fix-profiles", context_settings=dict(help_option_names=["-h", "--help"]))
+@click.argument("client_name", required=False)
+@click.option("--all", "-a", is_flag=True, help="Fix all detected client configurations")
+def fix_profiles(client_name, all):
+    """Fix existing MCPM profile configurations to use --stdio-clean flag.
+
+    This command updates existing MCPM profile configurations in client configs
+    to use the --stdio-clean flag, which prevents JSON parsing errors in clients
+    like Claude Desktop by suppressing banner output and logging.
+
+    Examples:
+
+    \b
+        mcpm client fix-profiles claude-desktop    # Fix Claude Desktop profile configs
+        mcpm client fix-profiles --all             # Fix all detected clients
+
+    For detailed troubleshooting, see: CLAUDE_DESKTOP_INTEGRATION.md
+    """
+    from mcpm.clients.client_registry import ClientRegistry
+
+    if all and client_name:
+        console.print("[red]Error: Cannot specify both client name and --all flag[/]")
+        return
+
+    if not all and not client_name:
+        console.print("[red]Error: Must specify either a client name or use --all flag[/]")
+        return
+
+    # Get clients to process
+    if all:
+        installed_clients = ClientRegistry.detect_installed_clients()
+        clients_to_process = [name for name, installed in installed_clients.items() if installed]
+        if not clients_to_process:
+            console.print("[yellow]No installed MCP clients detected[/]")
+            return
+    else:
+        # Validate single client
+        supported_clients = ClientRegistry.get_supported_clients()
+        if client_name not in supported_clients:
+            console.print(f"[red]Error: '{client_name}' is not a supported client[/]")
+            console.print(f"Supported clients: {', '.join(supported_clients)}")
+            return
+
+        installed_clients = ClientRegistry.detect_installed_clients()
+        if not installed_clients.get(client_name, False):
+            console.print(f"[yellow]Warning: '{client_name}' is not detected as installed[/]")
+
+        clients_to_process = [client_name]
+
+    total_fixed = 0
+
+    for client in clients_to_process:
+        console.print(f"\n[cyan]Checking {client}...[/]")
+
+        # Get client manager
+        client_manager = ClientRegistry.get_client_manager(client)
+        if not client_manager:
+            console.print(f"[yellow]  Skipping {client}: Cannot access configuration[/]")
+            continue
+
+        # Find MCPM profile servers that need fixing
+        servers_to_fix = []
+        try:
+            all_servers = client_manager.get_servers()
+            for server_name, server_config in all_servers.items():
+                # Check if this is an MCPM profile server
+                if (server_name.startswith("mcpm_profile_") and
+                    hasattr(server_config, 'command') and
+                    server_config.command == "mcpm" and
+                    hasattr(server_config, 'args') and
+                    len(server_config.args) >= 3 and
+                    server_config.args[0] == "profile" and
+                    server_config.args[1] == "run"):
+
+                    # Check if it already has --stdio-clean
+                    if "--stdio-clean" not in server_config.args:
+                        servers_to_fix.append((server_name, server_config))
+
+        except Exception as e:
+            console.print(f"[yellow]  Skipping {client}: Error reading configuration - {e}[/]")
+            continue
+
+        if not servers_to_fix:
+            console.print(f"[green]  ✓ No profile configurations need fixing in {client}[/]")
+            continue
+
+        # Fix the configurations
+        fixed_count = 0
+        for server_name, server_config in servers_to_fix:
+            try:
+                # Extract profile name from args
+                profile_name = server_config.args[2] if len(server_config.args) > 2 else "unknown"
+
+                # Create new config with --stdio-clean flag
+                new_server_config = STDIOServerConfig(
+                    name=server_name,
+                    command="mcpm",
+                    args=["profile", "run", "--stdio-clean", profile_name]
+                )
+
+                # Replace the server configuration
+                client_manager.remove_server(server_name)
+                client_manager.add_server(new_server_config)
+
+                console.print(f"[green]  ✓ Fixed profile '{profile_name}' in {server_name}[/]")
+                fixed_count += 1
+
+            except Exception as e:
+                console.print(f"[red]  ✗ Failed to fix {server_name}: {e}[/]")
+
+        if fixed_count > 0:
+            console.print(f"[green]  Fixed {fixed_count} profile configuration(s) in {client}[/]")
+            total_fixed += fixed_count
+
+    if total_fixed > 0:
+        console.print(f"\n[green]Successfully fixed {total_fixed} profile configuration(s) across {len(clients_to_process)} client(s)[/]")
+        console.print("[italic]Restart your MCP clients for changes to take effect.[/]")
+    else:
+        console.print(f"\n[green]All profile configurations are already up to date![/]")

@@ -89,3 +89,30 @@ def ensure_dependency_logging_suppressed() -> None:
     Call this after creating FastMCP proxies to ensure logging stays suppressed.
     """
     setup_dependency_logging()
+
+
+def setup_stdio_clean_logging() -> None:
+    """Configure logging for clean stdio output suitable for MCP client integration.
+
+    This completely suppresses all logging output to ensure only MCP protocol
+    messages are sent to stdout. Used when running profiles as MCP servers
+    for clients like Claude Desktop.
+    """
+    # Disable all logging by setting root logger to CRITICAL+1
+    # This ensures no log messages are output anywhere
+    logging.getLogger().setLevel(logging.CRITICAL + 1)
+
+    # Remove all handlers to prevent any output
+    root_logger = logging.getLogger()
+    for handler in root_logger.handlers[:]:
+        root_logger.removeHandler(handler)
+
+    # Also suppress all third-party and MCP-related loggers
+    for logger_name in [
+        "mcpm", "mcp", "mcp.client", "mcp.server", "FastMCP", "FastMCP.server",
+        "FastMCP.client", "httpx", "httpcore", "asyncio", "urllib3", "uvicorn"
+    ]:
+        logger = logging.getLogger(logger_name)
+        logger.setLevel(logging.CRITICAL + 1)
+        logger.handlers = []
+        logger.propagate = False

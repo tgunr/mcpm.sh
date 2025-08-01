@@ -54,6 +54,7 @@ class MCPMProxyFactory:
         stdio_mode: bool = True,
         action: str = "proxy",
         profile_name: Optional[str] = None,
+        stdio_clean: bool = False,
     ) -> FastMCP:
         """
         Create a FastMCP proxy that aggregates multiple MCPM servers.
@@ -64,8 +65,9 @@ class MCPMProxyFactory:
             stdio_mode: If True, skip auth middleware (for stdio operations)
 
         Returns:
-            FastMCP proxy instance with MCPM middleware
+            FastMCP proxy instance with MCMP middleware
         """
+        import os
         if not servers:
             raise ValueError("At least one server must be provided")
 
@@ -87,6 +89,18 @@ class MCPMProxyFactory:
                 if server.env:
                     # Ensure all environment values are strings (server.env is Dict[str, str])
                     env_config.update(server.env)
+
+                # In stdio-clean mode, suppress output from child processes
+                if stdio_clean:
+                    env_config.update({
+                        "PYTHONIOENCODING": "utf-8",
+                        "PYTHONUNBUFFERED": "0",
+                        "MCMP_STDIO_CLEAN": "1",
+                        "RICH_NO_COLOR": "1",
+                        "NO_COLOR": "1",
+                        "FORCE_COLOR": "0",
+                        "TERM": "dumb"
+                    })
 
                 server_configs[server.name] = StdioMCPServer(
                     command=server.command,
@@ -128,7 +142,7 @@ class MCPMProxyFactory:
         return proxy
 
     async def create_proxy_for_profile(
-        self, profile_servers: List[ServerConfig], profile_name: str, stdio_mode: bool = True
+        self, profile_servers: List[ServerConfig], profile_name: str, stdio_mode: bool = True, stdio_clean: bool = False
     ) -> FastMCP:
         """
         Create a FastMCP proxy for a specific MCPM profile.
@@ -142,7 +156,7 @@ class MCPMProxyFactory:
             FastMCP proxy instance configured for the profile
         """
         return await self.create_proxy_for_servers(
-            profile_servers, name=f"mcpm-profile-{profile_name}", stdio_mode=stdio_mode
+            profile_servers, name=f"mcmp-profile-{profile_name}", stdio_mode=stdio_mode, stdio_clean=stdio_clean
         )
 
     def _add_mcpm_middleware(
@@ -184,6 +198,7 @@ async def create_mcpm_proxy(
     stdio_mode: bool = True,
     action: str = "proxy",
     profile_name: Optional[str] = None,
+    stdio_clean: bool = False,
 ) -> FastMCP:
     """
     Convenience function to create a FastMCP proxy with MCPM integration.
@@ -201,7 +216,7 @@ async def create_mcpm_proxy(
     """
     factory = MCPMProxyFactory(auth_enabled=auth_enabled, api_key=api_key, access_monitor=access_monitor)
     proxy = await factory.create_proxy_for_servers(
-        servers, name, stdio_mode=stdio_mode, action=action, profile_name=profile_name
+        servers, name, stdio_mode=stdio_mode, action=action, profile_name=profile_name, stdio_clean=stdio_clean
     )
 
     # Initialize the access monitor if provided
