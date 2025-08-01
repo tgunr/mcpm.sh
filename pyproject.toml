@@ -50,6 +50,7 @@ mcpm = "mcpm.cli:main"
 [tool.hatch.version]
 path = "src/mcpm/version.py"
 
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
@@ -70,4 +71,5 @@ dev = [
     "ruff>=0.11.4",
     "jsonschema>=4.23.0",
     "openai>=1.72.0",
+    "fastmcp @ file:///Volumes/AI/Servers/MCP/fastmcp",
 ]
