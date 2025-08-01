@@ -77,12 +77,16 @@ def handle_exceptions(func):
         try:
             return func(*args, **kwargs)
         except Exception:
-            console.print(Traceback(show_locals=True))
-            console.print("[bold red]An unexpected error occurred.[/bold red]")
-            console.print(
-                "Please report this issue on our GitHub repository: "
-                "[link=https://github.com/pathintegral-institute/mcpm.sh/issues]https://github.com/pathintegral-institute/mcpm.sh/issues[/link]"
-            )
+            # In stdio-clean mode, suppress all error output to avoid contaminating JSON stream
+            if "--stdio-clean" not in sys.argv:
+                console.print(Traceback(show_locals=True))
+                console.print("[bold red]An unexpected error occurred.[/bold red]")
+                console.print(
+                    "Please report this issue on our GitHub repository: "
+                    "[link=https://github.com/pathintegral-institute/mcpm.sh/issues]https://github.com/pathintegral-institute/mcpm.sh/issues[/link]"
+                )
+            # In stdio-clean mode, exit silently with error code
+            return 1
 
     return wrapper
 

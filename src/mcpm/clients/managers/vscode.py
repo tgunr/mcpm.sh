@@ -1,7 +1,9 @@
 import json
 import logging
 import os
+import sys
 import traceback
+from pathlib import Path
 from typing import Any, Dict
 
 from mcpm.clients.base import JSONClientManager
@@ -94,7 +96,9 @@ class VSCodeManager(JSONClientManager):
             return True
         except Exception as e:
             logger.error(f"Error saving client config: {str(e)}")
-            traceback.print_exc()
+            # Only print traceback if not in stdio-clean mode
+            if "--stdio-clean" not in sys.argv:
+                traceback.print_exc()
             return False
 
     def to_client_format(self, server_config) -> dict:
