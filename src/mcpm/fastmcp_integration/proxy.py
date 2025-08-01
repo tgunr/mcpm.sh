@@ -16,6 +16,7 @@ from mcpm.core.schema import CustomServerConfig, RemoteServerConfig, ServerConfi
 from mcpm.monitor.base import AccessMonitor, SessionTransport
 from mcpm.monitor.sqlite import SQLiteAccessMonitor
 
+
 # FastMCP config models are available if needed in the future
 # from .config import create_mcp_config, create_stdio_server_config, create_remote_server_config
 from .middleware import MCPMAuthMiddleware, MCPMUnifiedTrackingMiddleware
@@ -99,14 +100,47 @@ class MCPMProxyFactory:
                         "RICH_NO_COLOR": "1",
                         "NO_COLOR": "1",
                         "FORCE_COLOR": "0",
-                        "TERM": "dumb"
+                        "TERM": "dumb",
+                        "PYTHONWARNINGS": "ignore",
+                        "LOGLEVEL": "CRITICAL",
+                        "LOG_LEVEL": "CRITICAL",
+                        "LOGGING_LEVEL": "CRITICAL",
+                        "MCP_LOG_LEVEL": "CRITICAL",
+                        "BASIC_MEMORY_LOG_LEVEL": "CRITICAL",
+                        "UVICORN_LOG_LEVEL": "critical",
+                        "FASTAPI_LOG_LEVEL": "critical"
                     })
 
-                server_configs[server.name] = StdioMCPServer(
-                    command=server.command,
-                    args=server.args or [],
-                    env=env_config,
-                )
+                # In stdio-clean mode, add more comprehensive output suppression
+                if stdio_clean:
+                    # Add shell wrapper to redirect stderr completely
+                    env_config.update({
+                        "PYTHONSTARTUP": "",
+                        "PYTHONDONTWRITEBYTECODE": "1",
+                        "PYTHONPATH": "",
+                        "_JAVA_OPTIONS": "-Xlog:disable",
+                        "NODE_NO_WARNINGS": "1",
+                        "RUST_LOG": "error",
+                        "RUST_BACKTRACE": "0"
+                    })
+
+                    # Use shell wrapper to redirect stderr to /dev/null
+                    shell_cmd = f"{server.command}"
+                    if server.args:
+                        shell_cmd += " " + " ".join(f'"{arg}"' for arg in server.args)
+                    shell_cmd += " 2>/dev/null"
+
+                    server_configs[server.name] = StdioMCPServer(
+                        command="sh",
+                        args=["-c", shell_cmd],
+                        env=env_config,
+                    )
+                else:
+                    server_configs[server.name] = StdioMCPServer(
+                        command=server.command,
+                        args=server.args or [],
+                        env=env_config,
+                    )
             elif isinstance(server, RemoteServerConfig):
                 # RemoteServerConfig - HTTP/SSE transport
                 # Convert all header values to strings (FastMCP expects Dict[str, str])

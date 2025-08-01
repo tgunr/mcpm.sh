@@ -2,6 +2,30 @@
 MCPM CLI - Main entry point for the Model Context Protocol Manager CLI
 """
 
+# Check for stdio-clean mode early and set up environment before any Rich imports
+import sys
+import os
+
+# Early stdio-clean detection
+if "--stdio-clean" in sys.argv:
+    # Set environment variables to suppress all possible output
+    os.environ.update({
+        "RICH_NO_COLOR": "1",
+        "NO_COLOR": "1",
+        "FORCE_COLOR": "0",
+        "TERM": "dumb",
+        "PYTHONWARNINGS": "ignore",
+        "LOGLEVEL": "CRITICAL",
+        "LOG_LEVEL": "CRITICAL",
+        "LOGGING_LEVEL": "CRITICAL",
+        "MCP_LOG_LEVEL": "CRITICAL",
+        "UVICORN_LOG_LEVEL": "critical",
+        "FASTAPI_LOG_LEVEL": "critical"
+    })
+
+    # Redirect stderr to devnull for stdio-clean mode
+    sys.stderr = open(os.devnull, 'w')
+
 # Import rich-click configuration before anything else
 from typing import Any, Dict
 

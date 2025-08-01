@@ -116,3 +116,58 @@ def setup_stdio_clean_logging() -> None:
         logger.setLevel(logging.CRITICAL + 1)
         logger.handlers = []
         logger.propagate = False
+
+    # Suppress Rich console output by monkey-patching Rich Console and other Rich components
+    try:
+        import os
+        import sys
+
+        # Redirect Rich console output to devnull
+        devnull = open(os.devnull, 'w')
+
+        # Patch Rich Console
+        from rich.console import Console
+        original_console_init = Console.__init__
+
+        def patched_console_init(self, *args, **kwargs):
+            # Force all console output to devnull
+            kwargs['file'] = devnull
+            kwargs['stderr'] = False
+            original_console_init(self, *args, **kwargs)
+
+        Console.__init__ = patched_console_init
+
+        # Patch rich-click to suppress Rich output
+        try:
+            import rich_click
+            # Disable rich-click formatting
+            rich_click.rich_click.USE_RICH_MARKUP = False
+            rich_click.rich_click.USE_MARKDOWN = False
+            rich_click.rich_click.SHOW_ARGUMENTS = False
+            rich_click.rich_click.SHOW_METAVARS_COLUMN = False
+            rich_click.rich_click.APPEND_METAVARS_HELP = False
+        except (ImportError, AttributeError):
+            pass
+
+        # Patch Rich traceback
+        try:
+            from rich.traceback import Traceback
+            original_traceback_init = Traceback.__init__
+
+            def patched_traceback_init(self, *args, **kwargs):
+                kwargs['console'] = Console(file=devnull, stderr=False)
+                original_traceback_init(self, *args, **kwargs)
+
+            Traceback.__init__ = patched_traceback_init
+        except (ImportError, AttributeError):
+            pass
+
+        # Set environment variables to suppress Rich
+        os.environ['RICH_NO_COLOR'] = '1'
+        os.environ['NO_COLOR'] = '1'
+        os.environ['FORCE_COLOR'] = '0'
+        os.environ['TERM'] = 'dumb'
+
+    except ImportError:
+        # Rich not available, nothing to suppress
+        pass
