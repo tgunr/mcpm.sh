@@ -1,6 +1,7 @@
 import json
 import logging
 import os
+import re
 import sys
 import traceback
 from pathlib import Path
@@ -35,6 +36,69 @@ class VSCodeManager(JSONClientManager):
                 # MacOS or Linux
                 self.config_path = os.path.expanduser("~/.config/Code/User/settings.json")
 
+    def _sanitize_json5(self, content: str) -> str:
+        """Sanitize JSON5-like content to valid JSON
+
+        VS Code settings.json allows some JSON5 features like trailing commas,
+        but Python's json module doesn't support them.
+
+        Args:
+            content: Raw JSON5-like content
+
+        Returns:
+            Sanitized JSON content
+        """
+        # Remove control characters that can break JSON parsing
+        content = re.sub(r'[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]', '', content)
+
+        # Remove trailing commas before closing brackets/braces
+        # This handles cases like: { "key": "value", } or [ "item", ]
+        content = re.sub(r',(\s*[}\]])', r'\1', content)
+
+        # Remove single-line comments, but be careful not to remove // from URLs
+        # Only remove // comments that start at beginning of line or after whitespace
+        content = re.sub(r'(^|\s)//.*?$', r'\1', content, flags=re.MULTILINE)
+
+        # Remove multi-line comments, but be more careful about context
+        # Only remove /* */ that aren't part of strings (basic heuristic)
+        lines = content.split('\n')
+        cleaned_lines = []
+        in_string = False
+        escape_next = False
+
+        for line in lines:
+            cleaned_line = ""
+            i = 0
+            while i < len(line):
+                char = line[i]
+
+                if escape_next:
+                    cleaned_line += char
+                    escape_next = False
+                elif char == '\\' and in_string:
+                    cleaned_line += char
+                    escape_next = True
+                elif char == '"' and not escape_next:
+                    cleaned_line += char
+                    in_string = not in_string
+                elif not in_string and i < len(line) - 1:
+                    if line[i:i+2] == '/*':
+                        # Skip until */
+                        j = line.find('*/', i + 2)
+                        if j != -1:
+                            i = j + 1  # Skip the */
+                        else:
+                            break  # Rest of line is comment
+                    else:
+                        cleaned_line += char
+                else:
+                    cleaned_line += char
+                i += 1
+
+            cleaned_lines.append(cleaned_line)
+
+        return '\n'.join(cleaned_lines)
+
     def _load_config(self) -> Dict[str, Any]:
         """Load client configuration file
 
@@ -60,15 +124,29 @@ class VSCodeManager(JSONClientManager):
 
         try:
             with open(self.config_path, "r", encoding="utf-8") as f:
-                config = json.load(f)
-                if "mcp" not in config:
-                    config["mcp"] = {}
-                # Ensure mcpServers section exists
-                if self.configure_key_name not in config["mcp"]:
-                    config["mcp"][self.configure_key_name] = {}
-                return config["mcp"]
-        except json.JSONDecodeError:
+                content = f.read()
+
+            # First try standard JSON parsing
+            try:
+                config = json.loads(content)
+            except json.JSONDecodeError:
+                # If that fails, try sanitizing JSON5-like syntax
+                logger.debug(f"Standard JSON parsing failed, trying JSON5 sanitization for: {self.config_path}")
+                sanitized_content = self._sanitize_json5(content)
+                config = json.loads(sanitized_content)
+
+            if "mcp" not in config:
+                config["mcp"] = {}
+            # Ensure mcpServers section exists
+            if self.configure_key_name not in config["mcp"]:
+                config["mcp"][self.configure_key_name] = {}
+            return config["mcp"]
+        except json.JSONDecodeError as e:
             logger.error(f"Error parsing client config file: {self.config_path}")
+            logger.debug(f"JSON decode error: {e}")
+        except Exception as e:
+            logger.error(f"Unexpected error reading config file: {self.config_path}")
+            logger.debug(f"Error: {e}")
 
         # Vscode config includes other information, so we makes no change on it
         return empty_config

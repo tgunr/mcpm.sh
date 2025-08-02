@@ -205,3 +205,28 @@ class ProfileConfigManager:
             self.global_config.create_profile_metadata(profile_name)
 
         return self.global_config.add_profile_tag_to_server(server_name, profile_name)
+
+    def expand_profile_to_client_configs(self, profile_name: str) -> List[ServerConfig]:
+        """Get all servers in a profile as individual ServerConfig objects suitable for client configs
+
+        Args:
+            profile_name: Name of the profile to expand
+
+        Returns:
+            List[ServerConfig]: List of server configurations ready for client configs
+        """
+        servers = self.get_profile(profile_name)
+        if not servers:
+            return []
+
+        expanded_servers = []
+        for server in servers:
+            # Handle remote servers by converting to client-compatible format
+            if hasattr(server, 'to_mcp_proxy_stdio'):
+                # Convert remote servers to stdio format for client compatibility
+                expanded_servers.append(server.to_mcp_proxy_stdio())
+            else:
+                # Server is already in a client-compatible format
+                expanded_servers.append(server)
+
+        return expanded_servers

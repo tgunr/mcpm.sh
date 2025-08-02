@@ -27,6 +27,8 @@ logger = logging.getLogger(__name__)
 console = Console(stderr=True)
 
 
+
+
 @contextlib.contextmanager
 def suppress_stderr():
     """Context manager to suppress stderr output during stdio-clean mode."""
@@ -186,6 +188,7 @@ async def run_profile_fastmcp(
 @click.option("--port", type=int, default=DEFAULT_PORT, help=f"Port for HTTP / SSE mode (default: {DEFAULT_PORT})")
 @click.option("--host", type=str, default="127.0.0.1", help="Host address for HTTP / SSE mode (default: 127.0.0.1)")
 @click.option("--stdio-clean", is_flag=True, help="Run in stdio mode with clean output for MCP client integration (suppresses banners and logs)")
+
 @click.help_option("-h", "--help")
 def run(profile_name, http, sse, port, host, stdio_clean):
     """Execute all servers in a profile over stdio, HTTP, or SSE.
@@ -206,8 +209,12 @@ def run(profile_name, http, sse, port, host, stdio_clean):
 
     For Claude Desktop integration, use --stdio-clean to suppress all output except MCP protocol messages.
 
+    To deploy servers directly to client configs instead, use:
+        mcpm profile deploy profile-name
+
     Debug logging: Set MCPM_DEBUG=1 for verbose output
     """
+
     # Setup stdio-clean mode FIRST, before any other operations
     if stdio_clean:
         setup_stdio_clean_logging()
@@ -230,6 +237,8 @@ def run(profile_name, http, sse, port, host, stdio_clean):
         if not stdio_clean:
             logger.error("Error: --stdio-clean cannot be used with --http or --sse")
         return 1
+
+
 
     # Check if profile exists
     try:

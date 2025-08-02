@@ -4,7 +4,7 @@ Provides a central registry of MCP client managers
 """
 
 import logging
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Tuple
 
 from mcpm.clients.base import BaseClientManager
 from mcpm.clients.client_config import ClientConfigManager
@@ -144,3 +144,47 @@ class ClientRegistry:
             List[str]: List of supported client names
         """
         return list(cls._CLIENT_MANAGERS.keys())
+
+    @classmethod
+    def find_clients_using_profile(cls, profile_name: str) -> List[Tuple[str, BaseClientManager]]:
+        """Find all clients that use the specified profile
+
+        Args:
+            profile_name: Name of the profile to search for
+
+        Returns:
+            List[Tuple[str, BaseClientManager]]: List of (client_name, manager) tuples
+                for clients that use the specified profile
+        """
+        clients_using_profile = []
+
+        for client_name, manager_class in cls._CLIENT_MANAGERS.items():
+            try:
+                manager = manager_class()
+                if manager.is_client_installed() and manager.uses_profile(profile_name):
+                    clients_using_profile.append((client_name, manager))
+            except Exception as e:
+                logger.debug(f"Error checking {client_name} for profile {profile_name}: {e}")
+
+        return clients_using_profile
+
+    @classmethod
+    def get_all_profile_usage(cls) -> Dict[str, List[str]]:
+        """Get all profiles used by all clients
+
+        Returns:
+            Dict[str, List[str]]: Dictionary mapping client names to lists of profile names
+        """
+        profile_usage = {}
+
+        for client_name, manager_class in cls._CLIENT_MANAGERS.items():
+            try:
+                manager = manager_class()
+                if manager.is_client_installed():
+                    profiles = manager.get_associated_profiles()
+                    if profiles:
+                        profile_usage[client_name] = profiles
+            except Exception as e:
+                logger.debug(f"Error getting profiles for {client_name}: {e}")
+
+        return profile_usage

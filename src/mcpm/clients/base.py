@@ -144,21 +144,114 @@ class BaseClientManager(abc.ABC):
         """
         profiles = []
         for server_name, server_config in self.get_servers().items():
-            if isinstance(server_config, STDIOServerConfig):
-                if hasattr(server_config, "args") and "--headers" in server_config.args:
-                    try:
-                        idx = server_config.args.index("profile")
-                        if idx < len(server_config.args) - 1:
-                            profiles.append(server_config.args[idx + 1])
-                    except ValueError:
-                        pass
-            else:
-                if hasattr(server_config, "url") and "profile=" in server_config.url:
-                    matched = re.search(r"profile=([^&]+)", server_config.url)
-                    if matched:
-                        profiles.append(matched.group(1))
-
+            profile_name = self._extract_profile_name(server_config)
+            if profile_name and profile_name not in profiles:
+                profiles.append(profile_name)
         return profiles
+
+    def uses_profile(self, profile_name: str) -> bool:
+        """Check if this client uses the specified profile
+
+        Args:
+            profile_name: Name of the profile to check for
+
+        Returns:
+            bool: True if client uses the profile, False otherwise
+        """
+        servers = self.get_servers()
+        for server_name, server_config in servers.items():
+            if self._is_profile_server(server_config, profile_name):
+                return True
+        return False
+
+    def _is_profile_server(self, server_config: ServerConfig, profile_name: str) -> bool:
+        """Check if a server config represents a profile command
+
+        Args:
+            server_config: Server configuration to check
+            profile_name: Profile name to match against
+
+        Returns:
+            bool: True if server config is for the specified profile
+        """
+        extracted_name = self._extract_profile_name(server_config)
+        return extracted_name == profile_name
+
+    def _extract_profile_name(self, server_config: ServerConfig) -> Optional[str]:
+        """Extract profile name from a server config if it's a profile server
+
+        Args:
+            server_config: Server configuration to analyze
+
+        Returns:
+            Optional[str]: Profile name if found, None otherwise
+        """
+        # Check for STDIO profile servers (mcpm profile run --stdio-clean profile_name)
+        if hasattr(server_config, 'command') and server_config.command == 'mcpm':
+            if hasattr(server_config, 'args') and server_config.args:
+                try:
+                    # Look for pattern: ["profile", "run", "--stdio-clean", profile_name]
+                    # or ["profile", "run", profile_name]
+                    if 'profile' in server_config.args and 'run' in server_config.args:
+                        profile_idx = server_config.args.index('profile')
+                        run_idx = server_config.args.index('run')
+
+                        # Profile name should be after 'run', potentially after '--stdio-clean'
+                        if run_idx > profile_idx:
+                            # Look for profile name after 'run'
+                            for i in range(run_idx + 1, len(server_config.args)):
+                                arg = server_config.args[i]
+                                # Skip flags like --stdio-clean
+                                if not arg.startswith('--'):
+                                    return arg
+                except (ValueError, IndexError):
+                    pass
+
+        # Check for HTTP/SSE profile servers (URL contains profile parameter)
+        if hasattr(server_config, 'url') and server_config.url:
+            if "profile=" in server_config.url:
+                matched = re.search(r"profile=([^&]+)", server_config.url)
+                if matched:
+                    return matched.group(1)
+
+        return None
+
+    def replace_profile_with_servers(self, profile_name: str, servers: List[ServerConfig]) -> bool:
+        """Replace profile command with individual servers
+
+        Args:
+            profile_name: Name of the profile to replace
+            servers: List of individual servers to add
+
+        Returns:
+            bool: True if replacement was successful
+        """
+        try:
+            # Find and remove profile server(s)
+            profile_servers_to_remove = []
+            for server_name, server_config in self.get_servers().items():
+                if self._is_profile_server(server_config, profile_name):
+                    profile_servers_to_remove.append(server_name)
+
+            # Remove profile servers
+            for server_name in profile_servers_to_remove:
+                if not self.remove_server(server_name):
+                    logger.warning(f"Failed to remove profile server {server_name}")
+
+            # Add individual servers
+            success_count = 0
+            for server in servers:
+                if self.add_server(server):
+                    success_count += 1
+                else:
+                    logger.warning(f"Failed to add server {server.name}")
+
+            logger.info(f"Replaced profile '{profile_name}' with {success_count}/{len(servers)} servers")
+            return success_count > 0
+
+        except Exception as e:
+            logger.error(f"Error replacing profile {profile_name} with servers: {e}")
+            return False
 
 
 class JSONClientManager(BaseClientManager):
