@@ -37,9 +37,9 @@ def client():
 
     \b
         mcpm client ls                    # List all supported MCP clients and their status
-        mcpm client info cursor           # Show detailed info for a specific client
         mcpm client edit cursor           # Interactive server selection for Cursor
         mcpm client edit claude-desktop   # Interactive server selection for Claude Desktop
+        mcpm client edit cursor --deploy  # Deploy profiles directly (zen deployment)
         mcpm client edit cursor -e        # Open Cursor config in external editor
         mcpm client import cursor         # Import server configurations from Cursor
         mcpm client fix-profiles          # Fix existing profile configurations for better compatibility
@@ -283,7 +283,9 @@ def info_client(client_name, config_path_override):
     # Basic info
     console.print(f"[bold]Client Code:[/] [cyan]{client_name}[/]")
     console.print(f"[bold]Display Name:[/] {display_name}")
-    console.print(f"[bold]Installation Status:[/] {'[green]Installed[/]' if client_is_installed else '[yellow]Not detected[/]'}")
+    console.print(
+        f"[bold]Installation Status:[/] {'[green]Installed[/]' if client_is_installed else '[yellow]Not detected[/]'}"
+    )
     console.print(f"[bold]Config File:[/] [cyan]{config_path}[/]")
     console.print(f"[bold]Config Exists:[/] {'[green]Yes[/]' if config_exists else '[red]No[/]'}")
 
@@ -368,7 +370,9 @@ def info_client(client_name, config_path_override):
     if other_servers:
         console.print(f"\n[bold yellow]Other Servers ({len(other_servers)}):[/]")
         for server_name, command_info in other_servers:
-            console.print(f"  • [cyan]{server_name}[/] → [dim]{command_info[:60]}{'...' if len(command_info) > 60 else ''}[/]")
+            console.print(
+                f"  • [cyan]{server_name}[/] → [dim]{command_info[:60]}{'...' if len(command_info) > 60 else ''}[/]"
+            )
 
     if total_servers == 0:
         console.print("  [dim]No MCP servers configured[/]")
@@ -392,7 +396,12 @@ def info_client(client_name, config_path_override):
     "-f", "--file", "config_path_override", type=click.Path(), help="Specify a custom path to the client's config file."
 )
 @click.option("--only-mcpm", is_flag=True, help="Remove all non-MCPM servers from the client configuration")
-def edit_client(client_name, external, config_path_override, only_mcpm):
+@click.option(
+    "--deploy",
+    is_flag=True,
+    help="Deploy profiles directly to client config (zen deployment) instead of using FastMCP proxy",
+)
+def edit_client(client_name, external, config_path_override, only_mcpm, deploy):
     """Enable/disable MCPM-managed servers in the specified client configuration.
 
     This command provides an interactive interface to integrate MCPM-managed
@@ -404,6 +413,10 @@ def edit_client(client_name, external, config_path_override, only_mcpm):
 
     Use --only-mcpm to remove all non-MCPM servers from the configuration,
     keeping only MCPM-managed servers and profiles.
+
+    Use --deploy to automatically deploy any selected profiles directly to the client
+    configuration (zen deployment) instead of using FastMCP proxy mode. This eliminates
+    the need to run 'mcpm profile deploy' separately.
 
     CLIENT_NAME is the name of the MCP client to configure (e.g., cursor, claude-desktop, windsurf).
     """
@@ -546,6 +559,7 @@ def edit_client(client_name, external, config_path_override, only_mcpm):
         available_profiles,
         global_servers,
         display_name,
+        deploy,
     )
 
 
@@ -601,6 +615,7 @@ def _interactive_profile_server_selection(
     available_profiles,
     global_servers,
     client_name,
+    deploy,
 ):
     """Interactive profile and server selection using InquirerPy with checkboxes."""
     try:
@@ -632,6 +647,8 @@ def _interactive_profile_server_selection(
 
         # Use InquirerPy checkbox for selection with retry loop for conflicts
         console.print(f"\n[bold]Select profiles/servers to enable in {client_name}:[/]")
+        if deploy:
+            console.print("[yellow]🚀 Deploy mode enabled - profiles will be expanded directly to client config[/]")
         console.print(
             "[dim]📦 = Profiles, 🔧 = Individual servers. Use space to toggle, enter to confirm, ESC to cancel[/]"
         )
@@ -690,7 +707,7 @@ def _interactive_profile_server_selection(
 
         # Save the updated configuration
         _save_config_with_profiles_and_servers(
-            client_manager, config_path, current_config, selected_profiles, selected_servers, client_name
+            client_manager, config_path, current_config, selected_profiles, selected_servers, client_name, deploy
         )
 
         # Show what changed
@@ -754,7 +771,7 @@ def _check_profile_server_conflicts(selected_profiles, selected_servers, availab
 
 
 def _save_config_with_profiles_and_servers(
-    client_manager, config_path, current_config, selected_profiles, selected_servers, client_name
+    client_manager, config_path, current_config, selected_profiles, selected_servers, client_name, deploy=False
 ):
     """Save the client config with updated profile and server entries using the client manager."""
     try:
@@ -779,12 +796,28 @@ def _save_config_with_profiles_and_servers(
             client_manager.remove_server(server_name)
 
         # Add new MCPM profile entries
-        for profile_name in selected_profiles:
-            prefixed_name = f"mcpm_profile_{profile_name}"
-            server_config = STDIOServerConfig(
-                name=prefixed_name, command="mcpm", args=["profile", "run", "--stdio-clean", profile_name]
-            )
-            client_manager.add_server(server_config)
+        if deploy and selected_profiles:
+            # Deploy profiles directly (zen deployment)
+            from mcpm.profile.profile_config import ProfileConfigManager
+
+            profile_manager = ProfileConfigManager()
+
+            for profile_name in selected_profiles:
+                try:
+                    # Expand profile to individual servers
+                    expanded_servers = profile_manager.expand_profile_to_client_configs(profile_name)
+                    for server in expanded_servers:
+                        client_manager.add_server(server)
+                except Exception as e:
+                    console.print(f"[red]Error expanding profile '{profile_name}': {e}[/]")
+        else:
+            # Use proxy mode (traditional approach)
+            for profile_name in selected_profiles:
+                prefixed_name = f"mcpm_profile_{profile_name}"
+                server_config = STDIOServerConfig(
+                    name=prefixed_name, command="mcpm", args=["profile", "run", "--stdio-clean", profile_name]
+                )
+                client_manager.add_server(server_config)
 
         # Add new MCPM server entries
         for server_name in selected_servers:
@@ -792,7 +825,11 @@ def _save_config_with_profiles_and_servers(
             server_config = STDIOServerConfig(name=prefixed_name, command="mcpm", args=["run", server_name])
             client_manager.add_server(server_config)
 
-        console.print(f"[green]Successfully updated {client_name} configuration![/]")
+        if deploy and selected_profiles:
+            console.print(f"[green]Successfully deployed {client_name} configuration (zen deployment)![/]")
+            console.print(f"[dim]Profiles expanded to individual servers for direct client connections[/]")
+        else:
+            console.print(f"[green]Successfully updated {client_name} configuration![/]")
         console.print("[bold]Modified files:[/]")
         console.print(f"  [cyan]{config_path}[/]")
         console.print(f"[italic]Restart {client_name} for changes to take effect.[/]")
@@ -1415,6 +1452,7 @@ def fix_profiles(client_name, all):
 
                 # Create new config with --stdio-clean flag
                 from mcpm.core.schema import STDIOServerConfig
+
                 new_server_config = STDIOServerConfig(
                     name=server_name, command="mcpm", args=["profile", "run", "--stdio-clean", profile_name]
                 )
