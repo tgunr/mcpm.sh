@@ -122,6 +122,7 @@ def deploy(profile_name):
     console.print(f"\n[bold blue]📁 Updating Client Configurations[/]")
     success_count = 0
     total_clients = len(clients_using_profile)
+    modified_files = []
 
     for client_name, client_manager in clients_using_profile:
         console.print(f"Updating [yellow]{client_name}[/]...", end=" ")
@@ -130,6 +131,8 @@ def deploy(profile_name):
             if client_manager.replace_profile_with_servers(profile_name, expanded_servers):
                 console.print("[green]✓[/]")
                 success_count += 1
+                # Track the modified config file
+                modified_files.append((client_name, client_manager.config_path))
             else:
                 console.print("[red]✗[/]")
                 logger.error(f"Failed to update {client_name}")
@@ -154,10 +157,14 @@ def deploy(profile_name):
         )
         console.print(success_panel)
 
-        # Show updated clients
+        # Show updated clients and modified files
         console.print(f"\n[bold]Updated clients:[/]")
         for client_name, _ in clients_using_profile:
             console.print(f"  • [green]{client_name}[/]")
+        
+        console.print(f"\n[bold]Modified files:[/]")
+        for client_name, config_path in modified_files:
+            console.print(f"  • [cyan]{config_path}[/] [dim]({client_name})[/]")
 
     else:
         # Failure panel

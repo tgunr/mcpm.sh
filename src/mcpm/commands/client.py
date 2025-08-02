@@ -600,7 +600,8 @@ def _save_config_with_profiles_and_servers(
             client_manager.add_server(server_config)
 
         console.print(f"[green]Successfully updated {client_name} configuration![/]")
-        console.print(f"[dim]Config saved to: {config_path}[/]")
+        console.print(f"[bold]Modified files:[/]")
+        console.print(f"  [cyan]{config_path}[/]")
         console.print(f"[italic]Restart {client_name} for changes to take effect.[/]")
 
     except Exception as e:
@@ -706,7 +707,8 @@ def _save_config_with_mcpm_servers(client_manager, config_path, current_config, 
             client_manager.add_server(server_config)
 
         console.print(f"[green]Successfully updated {client_name} configuration![/]")
-        console.print(f"[dim]Config saved to: {config_path}[/]")
+        console.print(f"[bold]Modified files:[/]")
+        console.print(f"  [cyan]{config_path}[/]")
         console.print(f"[italic]Restart {client_name} for changes to take effect.[/]")
 
     except Exception as e:
