@@ -37,6 +37,7 @@ def client():
 
     \b
         mcpm client ls                    # List all supported MCP clients and their status
+        mcpm client info cursor           # Show detailed info for a specific client
         mcpm client edit cursor           # Interactive server selection for Cursor
         mcpm client edit claude-desktop   # Interactive server selection for Claude Desktop
         mcpm client edit cursor -e        # Open Cursor config in external editor
@@ -110,7 +111,9 @@ def list_clients(verbose):
                     console.print(f"[dim]Debug: No servers found for {client_name}[/]")
             else:
                 if verbose:
-                    console.print(f"[dim]Debug: Found {len(client_servers)} total servers for {client_name}: {list(client_servers.keys())}[/]")
+                    console.print(
+                        f"[dim]Debug: Found {len(client_servers)} total servers for {client_name}: {list(client_servers.keys())}[/]"
+                    )
             for server_name, server_config in client_servers.items():
                 # Handle both object attributes and dictionary keys
                 if hasattr(server_config, "command"):
@@ -128,7 +131,7 @@ def list_clients(verbose):
                         # This is an MCPM profile - find profile name after 'run', skipping flags
                         profile_name = None
                         for i in range(2, len(args)):
-                            if not args[i].startswith('--'):
+                            if not args[i].startswith("--"):
                                 profile_name = args[i]
                                 break
                         if profile_name:
@@ -180,7 +183,7 @@ def list_clients(verbose):
                     f"[red]Error: {error_msg}[/]",
                     f"[red]Error: {error_msg}[/]",
                     f"[red]Error: {error_msg}[/]",
-                    f"[red]Error: {error_msg}[/]"
+                    f"[red]Error: {error_msg}[/]",
                 ]
             else:
                 row = [
@@ -210,7 +213,7 @@ def list_clients(verbose):
             if len(other_servers) <= 3:
                 other_display = ", ".join(other_servers)
             else:
-                other_display = f"{', '.join(other_servers[:3])} +{len(other_servers)-3} more"
+                other_display = f"{', '.join(other_servers[:3])} +{len(other_servers) - 3} more"
         else:
             other_display = "[dim]None[/]"
 
@@ -242,13 +245,154 @@ def list_clients(verbose):
     console.print("[dim]  • Use 'mcpm client edit <client> -e' to open client config in your default editor[/]\n")
 
 
+@client.command(name="info", context_settings=dict(help_option_names=["-h", "--help"]))
+@click.argument("client_name")
+@click.option(
+    "-f", "--file", "config_path_override", type=click.Path(), help="Specify a custom path to the client's config file."
+)
+def info_client(client_name, config_path_override):
+    """Display detailed information about a specific MCP client configuration.
+
+    Shows the config file path, installation status, and all currently enabled
+    MCP servers (both MCPM-managed and non-MCPM servers) for the specified client.
+
+    CLIENT_NAME is the name of the MCP client to inspect (e.g., cursor, claude-desktop, windsurf).
+    """
+    # Get the client manager for the specified client
+    client_manager = ClientRegistry.get_client_manager(client_name, config_path_override=config_path_override)
+    if client_manager is None:
+        console.print(f"[red]Error: Client '{client_name}' is not supported.[/]")
+        console.print("[yellow]Available clients:[/]")
+        supported_clients = ClientRegistry.get_supported_clients()
+        for supported_client in sorted(supported_clients):
+            console.print(f"  [cyan]{supported_client}[/]")
+        return
+
+    client_info = ClientRegistry.get_client_info(client_name)
+    display_name = client_info.get("name", client_name)
+
+    # Check if the client is installed
+    client_is_installed = client_manager.is_client_installed()
+    config_path = client_manager.config_path
+    config_exists = os.path.exists(config_path)
+
+    # Header
+    console.print(f"\n[bold]{display_name} Client Information[/]")
+    console.print("─" * 50)
+
+    # Basic info
+    console.print(f"[bold]Client Code:[/] [cyan]{client_name}[/]")
+    console.print(f"[bold]Display Name:[/] {display_name}")
+    console.print(f"[bold]Installation Status:[/] {'[green]Installed[/]' if client_is_installed else '[yellow]Not detected[/]'}")
+    console.print(f"[bold]Config File:[/] [cyan]{config_path}[/]")
+    console.print(f"[bold]Config Exists:[/] {'[green]Yes[/]' if config_exists else '[red]No[/]'}")
+
+    if not config_exists:
+        console.print(f"\n[yellow]No configuration file found for {display_name}.[/]")
+        console.print(f"[dim]You can create a config by running: mcpm client edit {client_name}[/]")
+        return
+
+    # Get current profiles and individual servers from client config
+    current_profiles, current_individual_servers = _get_current_client_mcpm_state(client_manager)
+
+    # Get all servers from client config
+    try:
+        all_client_servers = client_manager.get_servers()
+    except Exception as e:
+        console.print(f"\n[red]Error reading client configuration: {e}[/]")
+        return
+
+    # Categorize servers
+    mcpm_profile_servers = []
+    mcpm_individual_servers = []
+    other_servers = []
+
+    for server_name, server_config in all_client_servers.items():
+        # Handle both object attributes and dictionary keys
+        if hasattr(server_config, "command"):
+            command = server_config.command
+            args = getattr(server_config, "args", [])
+        elif isinstance(server_config, dict):
+            command = server_config.get("command", "")
+            args = server_config.get("args", [])
+        else:
+            other_servers.append((server_name, "Unknown configuration"))
+            continue
+
+        # Check if this is an MCPM-managed configuration
+        if command == "mcpm":
+            if len(args) >= 3 and args[0] == "profile" and args[1] == "run":
+                # This is an MCPM profile
+                profile_name = args[2] if len(args) > 2 else "unknown"
+                mcpm_profile_servers.append((server_name, profile_name))
+            elif len(args) >= 2 and args[0] == "run":
+                # This is an individual MCPM server
+                actual_server_name = args[1]
+                mcpm_individual_servers.append((server_name, actual_server_name))
+            else:
+                other_servers.append((server_name, f"mcpm {' '.join(args)}"))
+        elif server_name.startswith("mcpm_"):
+            # Legacy handling for servers with mcpm_ prefix
+            if command == "mcpm":
+                if len(args) >= 3 and args[0] == "profile" and args[1] == "run":
+                    profile_name = args[2]
+                    mcpm_profile_servers.append((server_name, profile_name))
+                elif len(args) >= 2 and args[0] == "run":
+                    actual_server_name = args[1]
+                    mcpm_individual_servers.append((server_name, actual_server_name))
+                else:
+                    other_servers.append((server_name, f"mcpm {' '.join(args)}"))
+            else:
+                other_servers.append((server_name, f"{command} {' '.join(args)}"))
+        else:
+            # This is a non-MCPM server
+            cmd_display = f"{command} {' '.join(args)}" if args else command
+            other_servers.append((server_name, cmd_display))
+
+    # Display server information
+    console.print("\n[bold]MCP Server Configuration:[/]")
+
+    total_servers = len(mcpm_profile_servers) + len(mcpm_individual_servers) + len(other_servers)
+    console.print(f"[bold]Total Servers:[/] {total_servers}")
+
+    if mcpm_profile_servers:
+        console.print(f"\n[bold magenta]MCPM Profiles ({len(mcpm_profile_servers)}):[/]")
+        for client_server_name, profile_name in mcpm_profile_servers:
+            console.print(f"  • [cyan]{client_server_name}[/] → Profile: [magenta]{profile_name}[/]")
+
+    if mcpm_individual_servers:
+        console.print(f"\n[bold green]MCPM Individual Servers ({len(mcpm_individual_servers)}):[/]")
+        for client_server_name, actual_server_name in mcpm_individual_servers:
+            console.print(f"  • [cyan]{client_server_name}[/] → Server: [green]{actual_server_name}[/]")
+
+    if other_servers:
+        console.print(f"\n[bold yellow]Other Servers ({len(other_servers)}):[/]")
+        for server_name, command_info in other_servers:
+            console.print(f"  • [cyan]{server_name}[/] → [dim]{command_info[:60]}{'...' if len(command_info) > 60 else ''}[/]")
+
+    if total_servers == 0:
+        console.print("  [dim]No MCP servers configured[/]")
+
+    # Footer with helpful commands
+    console.print("\n[bold]Helpful Commands:[/]")
+    console.print(f"  • [cyan]mcpm client edit {client_name}[/] - Configure servers for this client")
+    console.print(f"  • [cyan]mcpm client edit {client_name} -e[/] - Open config file in editor")
+
+    if not client_is_installed:
+        console.print(f"\n[yellow]⚠️  Note: {display_name} is not detected as installed.[/]")
+        console.print(f"[dim]Install {display_name} for the configuration to take effect.[/]")
+
+    console.print()
+
+
 @client.command(name="edit", context_settings=dict(help_option_names=["-h", "--help"]))
 @click.argument("client_name")
 @click.option("-e", "--external", is_flag=True, help="Open config file in external editor instead of interactive mode")
 @click.option(
     "-f", "--file", "config_path_override", type=click.Path(), help="Specify a custom path to the client's config file."
 )
-def edit_client(client_name, external, config_path_override):
+@click.option("--only-mcpm", is_flag=True, help="Remove all non-MCPM servers from the client configuration")
+def edit_client(client_name, external, config_path_override, only_mcpm):
     """Enable/disable MCPM-managed servers in the specified client configuration.
 
     This command provides an interactive interface to integrate MCPM-managed
@@ -257,6 +401,9 @@ def edit_client(client_name, external, config_path_override):
 
     Use --external/-e to open the config file directly in your default editor
     instead of using the interactive interface.
+
+    Use --only-mcpm to remove all non-MCPM servers from the configuration,
+    keeping only MCPM-managed servers and profiles.
 
     CLIENT_NAME is the name of the MCP client to configure (e.g., cursor, claude-desktop, windsurf).
     """
@@ -295,6 +442,27 @@ def edit_client(client_name, external, config_path_override):
             _create_basic_config(config_path)
 
         _open_in_editor(config_path, display_name)
+        return
+
+    # Handle --only-mcpm flag to remove non-MCPM servers
+    if only_mcpm:
+        if not config_exists:
+            console.print("[yellow]Config file does not exist. Nothing to clean.[/]")
+            return
+
+        removed_servers = _remove_non_mcpm_servers(client_manager, config_path, display_name)
+        if removed_servers:
+            console.print(
+                f"[green]Removed {len(removed_servers)} non-MCPM server(s) from {display_name} configuration.[/]"
+            )
+            console.print("[bold]Removed servers:[/]")
+            for server_name in sorted(removed_servers):
+                console.print(f"  • [red]{server_name}[/]")
+            console.print("[bold]Modified files:[/]")
+            console.print(f"  [cyan]{config_path}[/]")
+            console.print(f"[italic]Restart {display_name} for changes to take effect.[/]")
+        else:
+            console.print(f"[yellow]No non-MCPM servers found in {display_name} configuration.[/]")
         return
 
     # Load current client configuration
@@ -613,7 +781,9 @@ def _save_config_with_profiles_and_servers(
         # Add new MCPM profile entries
         for profile_name in selected_profiles:
             prefixed_name = f"mcpm_profile_{profile_name}"
-            server_config = STDIOServerConfig(name=prefixed_name, command="mcpm", args=["profile", "run", "--stdio-clean", profile_name])
+            server_config = STDIOServerConfig(
+                name=prefixed_name, command="mcpm", args=["profile", "run", "--stdio-clean", profile_name]
+            )
             client_manager.add_server(server_config)
 
         # Add new MCPM server entries
@@ -623,7 +793,7 @@ def _save_config_with_profiles_and_servers(
             client_manager.add_server(server_config)
 
         console.print(f"[green]Successfully updated {client_name} configuration![/]")
-        console.print(f"[bold]Modified files:[/]")
+        console.print("[bold]Modified files:[/]")
         console.print(f"  [cyan]{config_path}[/]")
         console.print(f"[italic]Restart {client_name} for changes to take effect.[/]")
 
@@ -730,7 +900,7 @@ def _save_config_with_mcpm_servers(client_manager, config_path, current_config, 
             client_manager.add_server(server_config)
 
         console.print(f"[green]Successfully updated {client_name} configuration![/]")
-        console.print(f"[bold]Modified files:[/]")
+        console.print("[bold]Modified files:[/]")
         console.print(f"  [cyan]{config_path}[/]")
         console.print(f"[italic]Restart {client_name} for changes to take effect.[/]")
 
@@ -1215,14 +1385,15 @@ def fix_profiles(client_name, all):
             all_servers = client_manager.get_servers()
             for server_name, server_config in all_servers.items():
                 # Check if this is an MCPM profile server
-                if (server_name.startswith("mcpm_profile_") and
-                    hasattr(server_config, 'command') and
-                    server_config.command == "mcpm" and
-                    hasattr(server_config, 'args') and
-                    len(server_config.args) >= 3 and
-                    server_config.args[0] == "profile" and
-                    server_config.args[1] == "run"):
-
+                if (
+                    server_name.startswith("mcpm_profile_")
+                    and hasattr(server_config, "command")
+                    and server_config.command == "mcpm"
+                    and hasattr(server_config, "args")
+                    and len(server_config.args) >= 3
+                    and server_config.args[0] == "profile"
+                    and server_config.args[1] == "run"
+                ):
                     # Check if it already has --stdio-clean
                     if "--stdio-clean" not in server_config.args:
                         servers_to_fix.append((server_name, server_config))
@@ -1243,10 +1414,9 @@ def fix_profiles(client_name, all):
                 profile_name = server_config.args[2] if len(server_config.args) > 2 else "unknown"
 
                 # Create new config with --stdio-clean flag
+                from mcpm.core.schema import STDIOServerConfig
                 new_server_config = STDIOServerConfig(
-                    name=server_name,
-                    command="mcpm",
-                    args=["profile", "run", "--stdio-clean", profile_name]
+                    name=server_name, command="mcpm", args=["profile", "run", "--stdio-clean", profile_name]
                 )
 
                 # Replace the server configuration
@@ -1264,7 +1434,68 @@ def fix_profiles(client_name, all):
             total_fixed += fixed_count
 
     if total_fixed > 0:
-        console.print(f"\n[green]Successfully fixed {total_fixed} profile configuration(s) across {len(clients_to_process)} client(s)[/]")
+        console.print(
+            f"\n[green]Successfully fixed {total_fixed} profile configuration(s) across {len(clients_to_process)} client(s)[/]"
+        )
         console.print("[italic]Restart your MCP clients for changes to take effect.[/]")
     else:
-        console.print(f"\n[green]All profile configurations are already up to date![/]")
+        console.print("\n[green]All profile configurations are already up to date![/]")
+
+
+def _remove_non_mcpm_servers(client_manager, config_path, client_name):
+    """Remove all non-MCPM servers from the client configuration.
+
+    Returns a list of removed server names.
+    """
+    try:
+        # Get all servers from client config
+        all_servers = client_manager.get_servers()
+        if not all_servers:
+            return []
+
+        # Identify non-MCPM servers
+        non_mcpm_servers = []
+        for server_name, server_config in all_servers.items():
+            is_mcpm_server = False
+
+            # Handle both object attributes and dictionary keys
+            if hasattr(server_config, "command"):
+                command = server_config.command
+                args = getattr(server_config, "args", [])
+            elif isinstance(server_config, dict):
+                command = server_config.get("command", "")
+                args = server_config.get("args", [])
+            else:
+                # Unknown config type, consider it non-MCPM
+                non_mcpm_servers.append(server_name)
+                continue
+
+            # Check if this is an MCPM-managed server
+            if command == "mcpm":
+                # This is an MCPM command
+                if (len(args) >= 2 and args[0] == "run") or (
+                    len(args) >= 3 and args[0] == "profile" and args[1] == "run"
+                ):
+                    is_mcpm_server = True
+            elif server_name.startswith("mcpm_"):
+                # Legacy MCPM server with prefix
+                if command == "mcpm":
+                    is_mcpm_server = True
+
+            if not is_mcpm_server:
+                non_mcpm_servers.append(server_name)
+
+        # Remove non-MCPM servers
+        removed_servers = []
+        for server_name in non_mcpm_servers:
+            try:
+                client_manager.remove_server(server_name)
+                removed_servers.append(server_name)
+            except Exception as e:
+                console.print(f"[yellow]Warning: Could not remove server '{server_name}': {e}[/]")
+
+        return removed_servers
+
+    except Exception as e:
+        print_error("Error removing non-MCPM servers", str(e))
+        return []
