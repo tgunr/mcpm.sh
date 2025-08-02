@@ -13,9 +13,11 @@ from mcpm.clients.managers.cursor import CursorManager
 from mcpm.clients.managers.fiveire import FiveireManager
 from mcpm.clients.managers.gemini_cli import GeminiCliManager
 from mcpm.clients.managers.goose import GooseClientManager
+from mcpm.clients.managers.ollmcp import OllmcpManager
 from mcpm.clients.managers.trae import TraeManager
 from mcpm.clients.managers.vscode import VSCodeManager
 from mcpm.clients.managers.windsurf import WindsurfManager
+from mcpm.clients.managers.zed import ZedManager
 
 __all__ = [
     "ClaudeCodeManager",
@@ -26,8 +28,10 @@ __all__ = [
     "ContinueManager",
     "FiveireManager",
     "GooseClientManager",
+    "OllmcpManager",
     "TraeManager",
     "VSCodeManager",
     "GeminiCliManager",
     "CodexCliManager",
+    "ZedManager",
 ]

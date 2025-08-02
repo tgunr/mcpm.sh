@@ -6,7 +6,7 @@ import logging
 from typing import Dict, List, Optional
 
 from fastmcp import FastMCP
-from fastmcp.utilities.mcp_config import (
+from fastmcp.mcp_config import (
     MCPConfig,
     RemoteMCPServer,
     StdioMCPServer,

@@ -428,7 +428,21 @@ class JSONClientManager(BaseClientManager):
         server_data = {
             "name": server_name,
         }
-        server_data.update(client_config)
+        
+        # Make a copy to avoid modifying the original
+        config_copy = client_config.copy()
+        
+        # Handle command arrays: convert to string + args format for STDIOServerConfig
+        if "command" in config_copy and isinstance(config_copy["command"], list):
+            command_list = config_copy["command"]
+            if command_list:
+                # First element becomes the command string
+                config_copy["command"] = command_list[0]
+                # Rest get prepended to existing args
+                existing_args = config_copy.get("args", [])
+                config_copy["args"] = command_list[1:] + existing_args
+        
+        server_data.update(config_copy)
         return TypeAdapter(ServerConfig).validate_python(server_data)
 
     def list_servers(self) -> List[str]:
