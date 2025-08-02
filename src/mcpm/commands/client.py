@@ -104,6 +104,13 @@ def list_clients(verbose):
 
         try:
             client_servers = client_manager.get_servers()
+            if not client_servers:
+                # No servers found - this could be empty config or parsing issue
+                if verbose:
+                    console.print(f"[dim]Debug: No servers found for {client_name}[/]")
+            else:
+                if verbose:
+                    console.print(f"[dim]Debug: Found {len(client_servers)} total servers for {client_name}: {list(client_servers.keys())}[/]")
             for server_name, server_config in client_servers.items():
                 # Handle both object attributes and dictionary keys
                 if hasattr(server_config, "command"):
@@ -161,17 +168,29 @@ def list_clients(verbose):
                 else:
                     # This is a non-MCPM server
                     other_servers.append(server_name)
+                    if verbose:
+                        console.print(f"[dim]Debug: Found non-MCPM server '{server_name}' with command '{command}'[/]")
 
-        except Exception:
+        except Exception as e:
             # If we can't read the client config, note it
-            row = [
-                client_display,
-                "[red]Error reading config[/]",
-                "[red]Error reading config[/]",
-                "[red]Error reading config[/]",
-            ]
             if verbose:
-                row.append("[dim]-[/]")
+                error_msg = str(e)[:50] + "..." if len(str(e)) > 50 else str(e)
+                row = [
+                    client_display,
+                    f"[red]Error: {error_msg}[/]",
+                    f"[red]Error: {error_msg}[/]",
+                    f"[red]Error: {error_msg}[/]",
+                    f"[red]Error: {error_msg}[/]"
+                ]
+            else:
+                row = [
+                    client_display,
+                    "[red]Error reading config[/]",
+                    "[red]Error reading config[/]",
+                    "[red]Error reading config[/]",
+                ]
+                if verbose:
+                    row.append("[dim]-[/]")
             table.add_row(*row)
             continue
 
@@ -187,7 +206,11 @@ def list_clients(verbose):
             servers_display = "[dim]None[/]"
 
         if other_servers:
-            other_display = ", ".join(other_servers)
+            # Show first few servers, with count if many
+            if len(other_servers) <= 3:
+                other_display = ", ".join(other_servers)
+            else:
+                other_display = f"{', '.join(other_servers[:3])} +{len(other_servers)-3} more"
         else:
             other_display = "[dim]None[/]"
 
