@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "mcp__basic-memory__write_note",
+      "Bash(python:*)",
+      "Bash(uv run:*)",
+      "Bash(ls:*)",
+      "mcp__basic-memory__edit_note",
+      "mcp__desktop-commander__read_file",
+      "Bash(grep:*)",
+      "Bash(jq:*)"
+    ],
+    "deny": []
+  }
+}

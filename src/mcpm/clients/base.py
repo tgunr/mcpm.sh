@@ -164,11 +164,11 @@ class BaseClientManager(abc.ABC):
                 return True
         return False
 
-    def _is_profile_server(self, server_config: ServerConfig, profile_name: str) -> bool:
+    def _is_profile_server(self, server_config, profile_name: str) -> bool:
         """Check if a server config represents a profile command
 
         Args:
-            server_config: Server configuration to check
+            server_config: Server configuration to check (dict or ServerConfig object)
             profile_name: Profile name to match against
 
         Returns:
@@ -177,42 +177,50 @@ class BaseClientManager(abc.ABC):
         extracted_name = self._extract_profile_name(server_config)
         return extracted_name == profile_name
 
-    def _extract_profile_name(self, server_config: ServerConfig) -> Optional[str]:
+    def _extract_profile_name(self, server_config) -> Optional[str]:
         """Extract profile name from a server config if it's a profile server
 
         Args:
-            server_config: Server configuration to analyze
+            server_config: Server configuration to analyze (dict or ServerConfig object)
 
         Returns:
             Optional[str]: Profile name if found, None otherwise
         """
-        # Check for STDIO profile servers (mcpm profile run --stdio-clean profile_name)
-        if hasattr(server_config, 'command') and server_config.command == 'mcpm':
-            if hasattr(server_config, 'args') and server_config.args:
-                try:
-                    # Look for pattern: ["profile", "run", "--stdio-clean", profile_name]
-                    # or ["profile", "run", profile_name]
-                    if 'profile' in server_config.args and 'run' in server_config.args:
-                        profile_idx = server_config.args.index('profile')
-                        run_idx = server_config.args.index('run')
+        # Handle both dict and ServerConfig object formats
+        if isinstance(server_config, dict):
+            command = server_config.get('command')
+            args = server_config.get('args', [])
+            url = server_config.get('url')
+        else:
+            command = getattr(server_config, 'command', None)
+            args = getattr(server_config, 'args', [])
+            url = getattr(server_config, 'url', None)
 
-                        # Profile name should be after 'run', potentially after '--stdio-clean'
-                        if run_idx > profile_idx:
-                            # Look for profile name after 'run'
-                            for i in range(run_idx + 1, len(server_config.args)):
-                                arg = server_config.args[i]
-                                # Skip flags like --stdio-clean
-                                if not arg.startswith('--'):
-                                    return arg
-                except (ValueError, IndexError):
-                    pass
+        # Check for STDIO profile servers (mcpm profile run --stdio-clean profile_name)
+        if command == 'mcpm' and args:
+            try:
+                # Look for pattern: ["profile", "run", "--stdio-clean", profile_name]
+                # or ["profile", "run", profile_name]
+                if 'profile' in args and 'run' in args:
+                    profile_idx = args.index('profile')
+                    run_idx = args.index('run')
+
+                    # Profile name should be after 'run', potentially after '--stdio-clean'
+                    if run_idx > profile_idx:
+                        # Look for profile name after 'run'
+                        for i in range(run_idx + 1, len(args)):
+                            arg = args[i]
+                            # Skip flags like --stdio-clean
+                            if not arg.startswith('--'):
+                                return arg
+            except (ValueError, IndexError):
+                pass
 
         # Check for HTTP/SSE profile servers (URL contains profile parameter)
-        if hasattr(server_config, 'url') and server_config.url:
-            if "profile=" in server_config.url:
-                matched = re.search(r"profile=([^&]+)", server_config.url)
-                if matched:
-                    return matched.group(1)
+        if url and "profile=" in url:
+            matched = re.search(r"profile=([^&]+)", url)
+            if matched:
+                return matched.group(1)
 
         return None
 

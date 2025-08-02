@@ -118,9 +118,14 @@ def list_clients(verbose):
                 # Check if this is an MCPM-managed configuration
                 if command == "mcpm":
                     if len(args) >= 3 and args[0] == "profile" and args[1] == "run":
-                        # This is an MCPM profile
-                        profile_name = args[2]
-                        mcpm_profiles.append(profile_name)
+                        # This is an MCPM profile - find profile name after 'run', skipping flags
+                        profile_name = None
+                        for i in range(2, len(args)):
+                            if not args[i].startswith('--'):
+                                profile_name = args[i]
+                                break
+                        if profile_name:
+                            mcpm_profiles.append(profile_name)
 
                         if verbose:
                             mcpm_server_details.append(f"{profile_name}: [magenta]Profile[/]")
