@@ -1,0 +1,72 @@
+name: Generate LLM.txt
+
+on:
+  # Trigger on releases
+  release:
+    types: [published]
+  
+  # Trigger on pushes to main branch
+  push:
+    branches: [main]
+    paths:
+      - 'src/mcpm/commands/**'
+      - 'src/mcpm/cli.py'
+      - 'scripts/generate_llm_txt.py'
+  
+  # Allow manual trigger
+  workflow_dispatch:
+
+jobs:
+  generate-llm-txt:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    
+    steps:
+    - name: Generate token
+      id: generate_token
+      uses: actions/create-github-app-token@v1
+      with:
+        app-id: ${{ secrets.BOT_APP_ID }}
+        private-key: ${{ secrets.BOT_PRIVATE_KEY }}
+    
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        token: ${{ steps.generate_token.outputs.token }}
+        fetch-depth: 0
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .
+    
+    - name: Generate llm.txt
+      run: |
+        python scripts/generate_llm_txt.py
+    
+    - name: Check for changes
+      id: check_changes
+      run: |
+        if git diff --quiet llm.txt; then
+          echo "no_changes=true" >> $GITHUB_OUTPUT
+        else
+          echo "no_changes=false" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Commit and push changes
+      if: steps.check_changes.outputs.no_changes == 'false'
+      run: |
+        git config --local user.email "action@github.com"
+        git config --local user.name "GitHub Action"
+        git add llm.txt
+        git commit -m "docs: update llm.txt for AI agents [skip ci]"
+        git push
+      env:
+        GITHUB_TOKEN: ${{ steps.generate_token.outputs.token }}
