@@ -397,15 +397,12 @@ def info_client(client_name, config_path_override):
 @click.option(
     "-f", "--file", "config_path_override", type=click.Path(), help="Specify a custom path to the client's config file."
 )
-<<<<<<< HEAD
 @click.option("--only-mcpm", is_flag=True, help="Remove all non-MCPM servers from the client configuration")
 @click.option(
     "--deploy",
     is_flag=True,
     help="Deploy profiles directly to client config (zen deployment) instead of using FastMCP proxy",
 )
-def edit_client(client_name, external, config_path_override, only_mcpm, deploy):
-=======
 @click.option("--add-server", help="Comma-separated list of server names to add")
 @click.option("--remove-server", help="Comma-separated list of server names to remove")
 @click.option("--set-servers", help="Comma-separated list of server names to set (replaces all)")
@@ -413,8 +410,7 @@ def edit_client(client_name, external, config_path_override, only_mcpm, deploy):
 @click.option("--remove-profile", help="Comma-separated list of profile names to remove")
 @click.option("--set-profiles", help="Comma-separated list of profile names to set (replaces all)")
 @click.option("--force", is_flag=True, help="Skip confirmation prompts")
-def edit_client(client_name, external, config_path_override, add_server, remove_server, set_servers, add_profile, remove_profile, set_profiles, force):
->>>>>>> 03a7b3d (🤖 Add Comprehensive AI Agent Friendly CLI Support (#221))
+def edit_client(client_name, external, config_path_override, only_mcpm, deploy, add_server, remove_server, set_servers, add_profile, remove_profile, set_profiles, force):
     """Enable/disable MCPM-managed servers in the specified client configuration.
 
     Interactive by default, or use CLI parameters for automation.
@@ -1405,7 +1401,6 @@ def _replace_client_config_with_mcpm(client_manager, selected_servers, client_na
         print_error("Error replacing client config", str(e))
 
 
-<<<<<<< HEAD
 @client.command(name="fix-profiles", context_settings=dict(help_option_names=["-h", "--help"]))
 @click.argument("client_name", required=False)
 @click.option("--all", "-a", is_flag=True, help="Fix all detected client configurations")
@@ -1587,7 +1582,8 @@ def _remove_non_mcpm_servers(client_manager, config_path, client_name):
     except Exception as e:
         print_error("Error removing non-MCPM servers", str(e))
         return []
-=======
+
+
 def _edit_client_non_interactive(
     client_manager,
     client_name: str,
@@ -1796,4 +1792,3 @@ def _edit_client_non_interactive(
     except Exception as e:
         console.print(f"[red]Error updating client configuration: {e}[/]")
         return 1
->>>>>>> 03a7b3d (🤖 Add Comprehensive AI Agent Friendly CLI Support (#221))
