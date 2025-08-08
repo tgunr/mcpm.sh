@@ -213,14 +213,22 @@ class ProfileConfigManager:
             profile_name: Name of the profile to expand
 
         Returns:
-            List[ServerConfig]: List of server configurations ready for client configs
+            List[ServerConfig]: List of server configurations ready for client configs (deduplicated)
         """
         servers = self.get_profile(profile_name)
         if not servers:
             return []
 
         expanded_servers = []
+        seen_server_names = set()  # Track server names to prevent duplicates
+        
         for server in servers:
+            # Skip if we've already seen this server name
+            if server.name in seen_server_names:
+                continue
+                
+            seen_server_names.add(server.name)
+            
             # Handle remote servers by converting to client-compatible format
             if hasattr(server, 'to_mcp_proxy_stdio'):
                 # Convert remote servers to stdio format for client compatibility

@@ -739,33 +739,37 @@ def _interactive_profile_server_selection(
 
 
 def _check_profile_server_conflicts(selected_profiles, selected_servers, available_profiles):
-    """Check for conflicts between selected profiles and individual servers."""
+    """Check for conflicts between selected profiles and individual servers, and duplicate servers across profiles."""
     conflicts = []
 
-    # Get all servers that are in selected profiles
+    # Get all servers that are in selected profiles and track which profiles contain each server
     profile_servers = set()
+    server_to_profiles = {}  # Track which profiles contain each server
+    
     for profile_name in selected_profiles:
         if profile_name in available_profiles:
             profile_server_configs = available_profiles[profile_name]
             for server_config in profile_server_configs:
-                profile_servers.add(server_config.name)
+                server_name = server_config.name
+                profile_servers.add(server_name)
+                
+                if server_name not in server_to_profiles:
+                    server_to_profiles[server_name] = []
+                server_to_profiles[server_name].append(profile_name)
 
-    # Check for overlaps
+    # Check for conflicts between profiles and individual servers
     conflicting_servers = profile_servers.intersection(set(selected_servers))
 
     for server_name in conflicting_servers:
-        # Find which profiles contain this server
-        containing_profiles = []
-        for profile_name in selected_profiles:
-            if profile_name in available_profiles:
-                profile_server_configs = available_profiles[profile_name]
-                for server_config in profile_server_configs:
-                    if server_config.name == server_name:
-                        containing_profiles.append(profile_name)
-                        break
-
+        containing_profiles = server_to_profiles.get(server_name, [])
         profile_list = "', '".join(containing_profiles)
         conflicts.append(f"Server '{server_name}' is in profile(s) '{profile_list}' and also selected individually")
+    
+    # Check for duplicate servers across multiple profiles
+    for server_name, containing_profiles in server_to_profiles.items():
+        if len(containing_profiles) > 1:
+            profile_list = "', '".join(containing_profiles)
+            conflicts.append(f"Server '{server_name}' appears in multiple selected profiles: '{profile_list}' (will be deduplicated automatically)")
 
     return conflicts
 
@@ -795,6 +799,9 @@ def _save_config_with_profiles_and_servers(
         for server_name in servers_to_remove:
             client_manager.remove_server(server_name)
 
+        # Track servers added from profiles for deduplication
+        added_servers_from_profiles = set()
+
         # Add new MCPM profile entries
         if deploy and selected_profiles:
             # Deploy profiles directly (zen deployment)
@@ -807,7 +814,15 @@ def _save_config_with_profiles_and_servers(
                     # Expand profile to individual servers
                     expanded_servers = profile_manager.expand_profile_to_client_configs(profile_name)
                     for server in expanded_servers:
-                        client_manager.add_server(server)
+                        # Skip if server was already added from a previous profile
+                        if server.name in added_servers_from_profiles:
+                            console.print(f"[dim]Skipping duplicate server '{server.name}' from profile '{profile_name}'[/]")
+                            continue
+                            
+                        if client_manager.add_server(server):
+                            added_servers_from_profiles.add(server.name)
+                        else:
+                            console.print(f"[yellow]Failed to add server '{server.name}' from profile '{profile_name}'[/]")
                 except Exception as e:
                     console.print(f"[red]Error expanding profile '{profile_name}': {e}[/]")
         else:
@@ -819,8 +834,13 @@ def _save_config_with_profiles_and_servers(
                 )
                 client_manager.add_server(server_config)
 
-        # Add new MCPM server entries
+        # Add new MCPM server entries (with deduplication check for zen deployment)
         for server_name in selected_servers:
+            # In zen deployment mode, check if server was already added from profiles
+            if deploy and selected_profiles and server_name in added_servers_from_profiles:
+                console.print(f"[dim]Skipping individual server '{server_name}' - already added from profile expansion[/]")
+                continue
+                
             prefixed_name = f"mcpm_{server_name}"
             server_config = STDIOServerConfig(name=prefixed_name, command="mcpm", args=["run", server_name])
             client_manager.add_server(server_config)

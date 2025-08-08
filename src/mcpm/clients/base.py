@@ -246,14 +246,26 @@ class BaseClientManager(abc.ABC):
                 if not self.remove_server(server_name):
                     logger.warning(f"Failed to remove profile server {server_name}")
 
-            # Add individual servers
+            # Add individual servers with deduplication
             success_count = 0
+            added_servers = set()  # Track already-added server names
+            existing_servers = set(self.get_servers().keys())  # Get current server names
+            
             for server in servers:
+                # Skip if server already exists or was already added in this operation
+                if server.name in existing_servers or server.name in added_servers:
+                    logger.info(f"Skipping duplicate server '{server.name}' during profile expansion")
+                    continue
+                    
                 if self.add_server(server):
                     success_count += 1
+                    added_servers.add(server.name)
                 else:
                     logger.warning(f"Failed to add server {server.name}")
 
+            skipped_count = len(servers) - len([s for s in servers if s.name not in existing_servers and s.name not in added_servers]) - success_count
+            if skipped_count > 0:
+                logger.info(f"Skipped {skipped_count} duplicate server(s) during profile '{profile_name}' expansion")
             logger.info(f"Replaced profile '{profile_name}' with {success_count}/{len(servers)} servers")
             return success_count > 0
 
