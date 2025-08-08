@@ -403,6 +403,7 @@ def info_client(client_name, config_path_override):
     is_flag=True,
     help="Deploy profiles directly to client config (zen deployment) instead of using FastMCP proxy",
 )
+
 @click.option("--add-server", help="Comma-separated list of server names to add")
 @click.option("--remove-server", help="Comma-separated list of server names to remove")
 @click.option("--set-servers", help="Comma-separated list of server names to set (replaces all)")
@@ -410,6 +411,7 @@ def info_client(client_name, config_path_override):
 @click.option("--remove-profile", help="Comma-separated list of profile names to remove")
 @click.option("--set-profiles", help="Comma-separated list of profile names to set (replaces all)")
 @click.option("--force", is_flag=True, help="Skip confirmation prompts")
+
 def edit_client(client_name, external, config_path_override, only_mcpm, deploy, add_server, remove_server, set_servers, add_profile, remove_profile, set_profiles, force):
     """Enable/disable MCPM-managed servers in the specified client configuration.
 
@@ -423,6 +425,7 @@ def edit_client(client_name, external, config_path_override, only_mcpm, deploy, 
     configuration (zen deployment) instead of using FastMCP proxy mode. This eliminates
     the need to run 'mcpm profile deploy' separately.
 
+    
     CLIENT_NAME is the name of the MCP client to configure (e.g., cursor, claude-desktop, windsurf).
     """
     # Get the client manager for the specified client
